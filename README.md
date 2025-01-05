@@ -52,10 +52,10 @@ repositories:
     original_path: ~/.ghq/github.com/user/repo1
 - name: repo2
     url: git@github.com:user/repo2.git
-    category: personnal
+    category: personal
     original_path: ~/.ghq/github.com/user/repo2
   - name: repo3
-    url: git@github.com:user/repo2.git
+    url: git@github.com:user/repo3.git
     category: homelab
     original_path: ~/.ghq/github.com/user/repo3
 ```
