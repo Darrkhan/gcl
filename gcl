@@ -1,0 +1,134 @@
+#!/bin/sh
+
+# Load configuration file
+CONF_FILE="$HOME/.config/gcl/gcl.conf"
+
+if [ -f "$CONF_FILE" ]; then
+  . "$CONF_FILE"
+else
+  echo "Error: Configuration file $CONF_FILE not found. Exiting."
+  exit 1
+fi
+
+# Check dependencies
+check_dependencies() {
+  command -v ghq >/dev/null 2>&1 || { echo "ghq is not installed. Exiting."; exit 1; }
+}
+
+# Helper functions
+print_usage() {
+  cat <<EOF
+Usage: gcl [command] [options]
+
+Commands:
+  add --name <repo> --url <url> --category <category>   Add a new repository
+  update                                                Update all repositories
+  list                                                  List all repositories with metadata
+  link                                                  Rebuild all symlinks
+  help                                                  Show this help message
+EOF
+}
+
+validate_category() {
+  local category="$1"
+
+  for allowed in $ALLOWED_CATEGORIES; do
+    if [ "$category" = "$allowed" ]; then
+      return 0
+    fi
+  done
+
+  echo "Error: Invalid category '$category'. Allowed cotegories are: $ALLOWED_CATEGORIES."
+  exit 1
+}
+
+add_repository() {
+  local name="" url="" category=""
+  
+  while [ "$#" -gt 0 ];do
+    case "$1" in
+      --name|-n) name="$2"; shift 2 ;;
+      --url|-u) url="$2"; shift 2 ;;
+      --category|-c) category="$2"; shift 2 ;;
+      *) echo "Unknown option: $1"; print_usage; exit 1 ;;
+    esac
+  done
+
+  if [ -z "$name" ] || [ -z "$url" ] || [ -z "$category" ]; then
+    echo "Error: Missing required options." print_usage; exit 1;
+  fi
+
+  echo $name
+  
+  # validate the category
+  validate_category "$category"
+
+  # clone repository
+  ghq get "$url" || { echo "Failed to clone repository: $url"; exit 1; }
+
+  # Get repository path
+  repo_path="$(ghq list --full-path | grep "$name")"
+  [ -z "$repo_path" ] && { echo "Error: Repository path not found."; exit 1; }
+
+  # Update metadata file
+  mkdir -p "$CATEGORY_DIR"
+  if [ ! -f "$METADATA_FILE" ]; then
+    echo "repositories: {}" > "$METADATA_FILE"
+  fi
+
+  yq eval ".repositories[\"$name\"] = {\"url\": \"$url\", \"category\": \"$category\", \"path\": \"$repo_path\"}" -i "$METADATA_FILE"
+
+  # Create symlink
+  create_symlink "$name" "$category" "$repo_path"
+  echo "Repository '$name' added successfully."
+}
+
+create_symlink() {
+  local name="$1" category="$2" repo_path="$3"
+
+  target_dir="$CATEGORY_DIR/$category"
+  mkdir -p "$target_dir"
+  ln -sf "$repo_path" "$target_dir/$name"
+}
+
+list_repositories() {
+  if [ ! -f "$METADATA_FILE" ]; then
+    echo "Metadata file not found. No repositories to list"
+    return
+  fi
+
+  yq eval ".repositories" "$METADATA_FILE"
+}
+
+update_repositories() {
+  yq eval ".repositories[]" "$METADATA_FILE" | yq eval "keys" - | while read -r name; do
+    repo_path=$(yq eval ".repositories[\"$name\"].path" "$METADATA_FILE")
+    [ -d "$repo_path" ] && (cd "$repo_path" && git pull)
+    done
+    echo "All repositories updated."
+}
+
+rebuild_symlinks() {
+    repos=$(yq eval ".repositories[]" "$METADATA_FILE")
+    echo "$repos" | while read -r repo; do
+        name=$(echo "$repo" | yq eval ".name" -)
+        category=$(echo "$repo" | yq eval ".category" -)
+        repo_path=$(echo "$repo" | yq eval ".path" -)
+        create_symlink "$name" "$category" "$repo_path"
+    done
+    echo "Symlinks rebuilt."
+}
+
+
+# Main
+check_dependencies
+
+case "$1" in
+  add) shift; add_repository "$@" ;;
+  list) list_repositories ;;
+  update) update_repositories ;;
+  links) rebuild_symlinks ;;
+  help) print_usage ;;
+  *) echo "Unknown command: $1"; print_usage; exit 1 ;;
+esac
+
