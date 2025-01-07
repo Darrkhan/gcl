@@ -119,12 +119,54 @@ rebuild_symlinks() {
     echo "Symlinks rebuilt."
 }
 
+delete_repository() {
+  local name="$1"
+
+  if [ -z "$name" ]; then
+    echo "Error: Repository name is required."
+    return 1
+  fi
+
+  read -p "Are you sure you want to delete '$name' ? (Y/n) " confirm
+  case "$confirm" in
+    [yY] | [yY][eE][sS])
+      echo "Deleting repository: "$name"..."
+      category=$(yq eval ".repositories[\"$name\"] | .category" "$METADATA_FILE")
+      repo_path=$(yq eval ".repositories[\"$name\"] | .path" "$METADATA_FILE")
+
+      if [ -f "$METADATA_FILE" ]; then
+        yq eval "del(.repositories[\"$name\"])" -i "$METADATA_FILE"
+      else
+          echo 'Error: Metadata file not found. Exiting.'
+          return 1
+      fi
+
+      if [ -n "$category" ]; then
+        symlink_path="$CATEGORY_DIR/$category/$name"
+        [ -L "$symlink_path" ] && rm "$symlink_path"
+      fi
+      
+      if [ -d "$repo_path" ]; then
+        rm -rf "$repo_path" || { echo "Error: Failed to delete repository directory at '$repo_path'."; return 1; }
+      else
+        echo "Warning: Repository directory not found at '$repo_path'. Skippping."
+      fi
+
+      echo "Repository '$name' deleted successfully."
+    ;;
+    *)
+      echo "Deletion canceled."
+    ;;
+  esac
+}
+
 
 # Main
 check_dependencies
 
 case "$1" in
   add) shift; add_repository "$@" ;;
+  del) shift; delete_repository "$1" ;;
   list) list_repositories ;;
   update) update_repositories ;;
   links) rebuild_symlinks ;;
