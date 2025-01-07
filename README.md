@@ -46,17 +46,21 @@ Managing git and other repositories can quickly become chaotic, especially when 
 #### Metadata file:
 ```yaml
 repositories:
-  - name: repo1
+  repo1:
     url: git@github.com:user/repo1.git
     category: personal
-    original_path: ~/.ghq/github.com/user/repo1
-- name: repo2
+    path: ~/.ghq/github.com/user/repo1
+  repo2:
     url: git@github.com:user/repo2.git
     category: personal
-    original_path: ~/.ghq/github.com/user/repo2
-  - name: repo3
+    path: ~/.ghq/github.com/user/repo2
+  repo3:
     url: git@github.com:user/repo3.git
     category: homelab
-    original_path: ~/.ghq/github.com/user/repo3
+    path: ~/.ghq/github.com/user/repo3
 ```
 
+#### Requirements
+To work correctly gcl relies on:
+ - [yq](https://github.com/mikefarah/yq) (v4.X.X)
+ - [ghq](https://github.com/x-motemen/ghq) (v1.7.1) 
